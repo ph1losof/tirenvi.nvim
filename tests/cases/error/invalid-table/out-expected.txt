@@ -1,0 +1,5 @@
+=== MESSAGE ===
+
+=== DISPLAY ===
+│a│b│
+│c│d│

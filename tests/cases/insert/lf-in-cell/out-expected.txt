@@ -1,0 +1,8 @@
+=== MESSAGE ===
+[TIR][5:0(+0)MB][ERROR][[string ":lua"]:6] [CI] key = E2
+[TIR][5:0(+0)MB][ERROR][[string ":lua"]:6] [CI] key = A4
+[TIR][5:0(+0)MB][ERROR][[string ":lua"]:6] [CI] key = B6
+
+=== DISPLAY ===
+│a│b│
+│⤶c│d│

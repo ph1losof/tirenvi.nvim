@@ -1,0 +1,7 @@
+=== MESSAGE ===
+[TIR][5:0(+0)MB][ERROR][[string ":lua"]:6] [CI] key = 0D
+
+=== DISPLAY ===
+│a│b│
+│ │ │
+│c│d│

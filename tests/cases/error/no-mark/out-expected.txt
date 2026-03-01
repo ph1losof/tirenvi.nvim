@@ -1,0 +1,7 @@
+=== MESSAGE ===
+tirenvi: No usable characters found for marks: [pipe].
+Please configure alternative characters in tirenvi.setup().
+
+=== DISPLAY ===
+a,b
+c,d

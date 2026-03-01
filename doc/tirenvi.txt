@@ -1,0 +1,175 @@
+*tirenvi.txt*    tirenvi.nvim — Structural TIR editing for Neovim
+
+==============================================================================
+INTRODUCTION                                        *tirenvi*
+
+tirenvi is a Neovim plugin that renders CSV/TSV (and other tabular formats)
+as aligned tables — while preserving Vim’s native editing model.
+
+Design principles:
+  - Vim-first
+  - Text-only buffer
+  - Fully reversible transformation
+  - Structurally safe
+  - No hidden metadata
+
+It does NOT introduce:
+  - A new editing mode
+  - A special buffer type
+  - A spreadsheet UI
+  - A shadow buffer
+
+Editing remains pure Vim.
+
+============================================================================== 
+INSTALLATION                                        *tirenvi-install*
+
+Requirements:
+  - Neovim >= 0.9
+  - External parser command (e.g. tir-csv)
+  - UTF-8 environment recommended
+
+Install tir-csv:
+
+    pip install tir-csv
+
+Using lazy.nvim:
+
+    {
+      "kibi2/tirenvi.nvim",
+      config = function()
+        require("tirenvi").setup()
+      end,
+    }
+
+After installation:
+
+    :checkhealth tirenvi
+
+============================================================================== 
+USAGE                                               *tirenvi-usage*
+
+tirenvi activates automatically for supported file extensions
+(e.g. .csv, .tsv).
+
+Supported by default:
+  - csv
+  - tsv
+
+Commands:
+
+    :Tir redraw     Recalculate column widths
+    :Tir toggle     Toggle raw ↔ structured view
+
+All normal Vim motions and operators work:
+  dd, yy, p, cw, visual block, :%s, etc.
+
+No special editing mode is required.
+
+============================================================================== 
+STRUCTURAL MODEL                                    *tirenvi-structure*
+
+Columns and rows are treated as structural elements.
+
+Structural edits are continuously validated.
+
+Behavior:
+
+  - In Normal mode:
+      Invalid structural edits are corrected immediately.
+
+  - In Insert mode:
+      Structural inconsistencies may temporarily appear.
+      They are validated and corrected after leaving Insert mode.
+
+  - Undo tree is respected:
+      Historical undo states are not modified.
+      Temporary inconsistent states may appear when navigating
+      the undo tree.
+
+Structural consistency is restored when returning
+to the latest editing state.
+
+============================================================================== 
+COLUMN EDITING                                      *tirenvi-column*
+
+To modify a column:
+
+  1. Use Visual Block mode (<C-v>)
+  2. Select vertically across rows
+  3. Apply normal operators (d, p, etc.)
+
+Operations that would break structural alignment
+are automatically corrected in the current editing state.
+
+============================================================================== 
+PIPE MOTIONS                                        *tirenvi-motion*
+
+tirenvi provides pipe-aware motions for fast horizontal navigation.
+
+Available Lua functions:
+
+    require("tirenvi").motion.f
+    require("tirenvi").motion.F
+    require("tirenvi").motion.t
+    require("tirenvi").motion.T
+
+They behave like Vim's built-in f/F/t/T,
+but automatically target table separators.
+
+After one execution, ';' and ',' repeat still work.
+
+Example mapping:
+
+    vim.keymap.set({ 'n', 'o', 'x' }, '<leader>tf',
+        require('tirenvi').motion.f, { expr = true })
+
+============================================================================== 
+CONFIGURATION                                       *tirenvi-config*
+
+Default configuration:
+
+    require("tirenvi").setup({
+        parser_map = {
+            csv = { command = "tir-csv", options = {} },
+            tsv = { command = "tir-csv",
+                    options = { "--delimiter", "\t" } },
+        },
+    })
+
+parser_map maps file extension → external parser.
+
+============================================================================== 
+HOW IT WORKS                                        *tirenvi-architecture*
+
+Core concept:
+
+    TIR — Tabular Intermediate Representation
+
+Workflow:
+
+  flat format (CSV/TSV/...) → TIR → tir-vim
+  edit in tir-vim
+  tir-vim → TIR → original flat format
+
+Key properties:
+
+  - The buffer contains only text
+  - No hidden metadata
+  - No shadow state
+  - Transformations are reversible
+  - Structural validation is automatic
+
+TIR specification will be published separately.
+
+============================================================================== 
+HEALTHCHECK                                         *tirenvi-health*
+
+Run:
+
+    :checkhealth tirenvi
+
+to verify parser availability and environment setup.
+
+============================================================================== 
+vim:tw=78:ts=8:ft=help:norl:

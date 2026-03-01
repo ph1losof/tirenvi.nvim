@@ -1,0 +1,8 @@
+=== MESSAGE ===
+tirenvi: Required command 'tir-my-csv' not found in PATH.
+
+Use :checkhealth tirenvi for details.
+
+=== DISPLAY ===
+a,b
+c,d

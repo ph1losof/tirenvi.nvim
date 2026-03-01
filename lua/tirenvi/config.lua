@@ -1,0 +1,62 @@
+--- Configuration management for tirenvi.
+---
+
+-----------------------------------------------------------------------
+-- Dependencies
+-----------------------------------------------------------------------
+
+local levels = vim.log.levels
+
+-----------------------------------------------------------------------
+-- Module
+-----------------------------------------------------------------------
+
+local M = {}
+
+-----------------------------------------------------------------------
+-- Defaults
+-----------------------------------------------------------------------
+local defaults = {
+	---@type Marks
+	marks = {
+		pipe = "│", -- │┆┊┇┃┋▏▕
+		padding = " ", --    ·∙⸱␣␠⠀░
+		trim = "⇢", -- ⇢⋯⋮︙›↠▶¬…
+		lf = "⤶", -- ⤶⏎↵↲⤷␤¶—↩️
+		tab = "»", -- »⇥→⇨▹▸▻►⇤␉》
+	},
+	---@type {[string]: Parser}
+	parser_map = {
+		csv = { command = "tir-csv", options = {} },
+		tsv = { command = "tir-csv", options = { "--delimiter", "\t" } },
+		-- md  = "tir-gfm",
+	},
+	log = {
+		level = levels.WARN,
+		single_line = true,
+		output = "notify", -- "notify" | "buffer" | "print"
+		buffer_name = "tirenvi://log",
+		use_timestamp = false,
+		monitor = true,
+		probe = false,
+	},
+}
+
+-----------------------------------------------------------------------
+-- Initialize with defaults
+-----------------------------------------------------------------------
+
+local function apply(tbl)
+	for k, v in pairs(tbl) do
+		M[k] = v
+	end
+end
+
+apply(vim.deepcopy(defaults))
+
+function M.setup(opts)
+	local merged = vim.tbl_deep_extend("force", {}, M, opts or {})
+	apply(merged)
+end
+
+return M

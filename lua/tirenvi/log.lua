@@ -1,0 +1,214 @@
+local config = require("tirenvi.config")
+local notify = require("tirenvi.notify")
+
+local M = {}
+local levels = vim.log.levels
+
+local level_names = {}
+local PREFIX = "[TIR]"
+local uv = vim.loop
+local last_time = nil
+local queue = {}
+local scheduled = false
+local log_bufnr = nil
+
+for name, value in pairs(levels) do
+	level_names[value] = name
+end
+
+local last_tick = 0
+local last_mem = 0
+local last_time = vim.loop.now()
+local monitoring = false
+
+local function get_tick()
+	return vim.api.nvim_buf_get_changedtick(0)
+end
+
+local function get_mem_mb()
+	return collectgarbage("count") / 1024
+end
+
+local function get_monitor()
+	if not config.log.monitor then
+		return ""
+	end
+	local current_mem = get_mem_mb()
+	local delta_mem = current_mem - last_mem
+	return string.format("[%d:%d(+%d)MB]", get_tick(), current_mem, delta_mem)
+end
+
+local function monitor()
+	if monitoring then
+		return
+	end
+	monitoring = true
+
+	local mem = get_mem_mb()
+	local tick = get_tick()
+	local now = vim.loop.now()
+
+	if now - last_time < 1000 then
+		if tick - last_tick > 100 then
+			M.error("changedtick runaway detected")
+		end
+	end
+
+	if mem > 2000 then
+		M.error("memory runaway: " .. mem .. "MB")
+	end
+
+	last_tick = tick
+	last_mem = mem
+	last_time = now
+
+	monitoring = false
+end
+
+local function stringify(v)
+	local t = type(v)
+
+	if t == "table" then
+		if config.log.single_line then
+			return string.format(
+				"<table> %s",
+				vim.inspect(v, {
+					newline = " ",
+					indent = "",
+					depth = 3,
+				})
+			)
+		else
+			return string.format("<table>\n%s", vim.inspect(v))
+		end
+	elseif t == "string" then
+		return string.format("<string> %s", v)
+	else
+		return string.format("<%s> %s", t, tostring(v))
+	end
+end
+
+local function get_timestamp()
+	if not config.log.use_timestamp then
+		return ""
+	end
+	local now = uv.hrtime()
+	if not last_time then
+		last_time = now
+		return os.date("[%H:%M:%S]")
+	end
+	local delta_ms = (now - last_time) / 1e6
+	last_time = now
+	return string.format("[+%.0fms]", delta_ms)
+end
+
+local function ensure_log_buf()
+	if log_bufnr and vim.api.nvim_buf_is_valid(log_bufnr) then
+		return log_bufnr
+	end
+
+	log_bufnr = vim.api.nvim_create_buf(false, true)
+	vim.api.nvim_buf_set_name(log_bufnr, config.log.buffer_name)
+
+	vim.bo[log_bufnr].buftype = "nofile"
+	vim.bo[log_bufnr].bufhidden = "hide"
+	vim.bo[log_bufnr].swapfile = false
+
+	return log_bufnr
+end
+
+local function flush()
+	scheduled = false
+	if #queue == 0 then
+		return
+	end
+
+	local bufnr = ensure_log_buf()
+	local buf_string = table.concat(queue, "\n")
+	buf_string = buf_string:gsub("\r", "")
+	vim.api.nvim_buf_set_lines(bufnr, 0, 0, false, vim.split(buf_string, "\n"))
+	queue = {}
+end
+
+local function write_buffer(msg)
+	table.insert(queue, 1, msg)
+
+	if not scheduled then
+		scheduled = true
+		vim.schedule(flush)
+	end
+end
+
+local unpack = table.unpack or unpack -- Lua 5.1/5.2 compatibility
+
+---@param level integer
+---@param force boolean
+---@param fmt any
+---@param ... unknown
+local function emit(force, level, fmt, ...)
+	monitor()
+	if not force and level < config.log.level then
+		return
+	end
+	if fmt == nil then
+		return
+	end
+
+	local info = debug.getinfo(3, "Sl")
+	local file = info and (info.short_src:match("([^/\\]+)$")) or "?"
+	local line = info and info.currentline or 0
+
+	local args = { ... }
+	local msg
+	local ok, result = pcall(function()
+		return string.format(fmt, unpack(args))
+	end)
+	if ok then
+		msg = result
+	else
+		local args = { fmt, ... }
+		local parts = vim.tbl_map(stringify, args)
+		msg = table.concat(parts, " ")
+	end
+
+	local ts = get_timestamp()
+	local mon = get_monitor()
+	local name = level_names[level]
+	if force then
+		name = "PROBE"
+	end
+	local final = string.format("%s%s%s[%s][%s:%d] %s", PREFIX, ts, mon, name, file, line, msg)
+
+	if config.log.output == "buffer" then
+		write_buffer(final)
+	elseif config.log.output == "print" then
+		print(final)
+	else
+		notify.notify(final, level)
+	end
+end
+
+function M.debug(...)
+	emit(false, levels.DEBUG, ...)
+end
+
+function M.info(...)
+	emit(false, levels.INFO, ...)
+end
+
+function M.warn(...)
+	emit(false, levels.WARN, ...)
+end
+
+function M.error(...)
+	emit(false, levels.ERROR, ...)
+end
+
+function M.probe(...)
+	if not config.log.probe then
+		return
+	end
+	emit(true, levels.ERROR, ...)
+end
+
+return M
