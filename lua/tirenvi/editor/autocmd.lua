@@ -93,26 +93,23 @@ local function debug_entry_point(args)
 	log.debug("===+===+===+===+=== %s(%d)%s ===+===+===+===+===", args.event, args.buf, filetype)
 end
 
-local function register_autocmds()
-	local augroup = api.nvim_create_augroup(GROUP_NAME, { clear = true })
-	api.nvim_create_autocmd("BufReadPost", {
-		group = augroup,
-		-- Process only items for which a parser has been specified
-		callback = guard.guarded(function(args)
-			if buf_state.should_skip(args.buf, {
-					supported = true,
-					no_vscode = true,
-					has_parser = true,
-				}) then
-				return
-			end
-			debug_entry_point(args)
-			on_buf_read_post(args)
-		end),
-	})
+---@param filetype string|nil
+---@return boolean
+local function is_configured_filetype(filetype)
+	return filetype ~= nil and filetype ~= "" and config.parser_map[filetype] ~= nil
+end
+
+---@param augroup integer
+---@param bufnr number
+local function register_buffer_local_autocmds(augroup, bufnr)
+	if vim.b[bufnr].tirenvi_autocmds_registered then
+		return
+	end
+	vim.b[bufnr].tirenvi_autocmds_registered = true
 
 	api.nvim_create_autocmd("BufWritePre", {
 		group = augroup,
+		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
 					supported = true,
@@ -127,6 +124,7 @@ local function register_autocmds()
 
 	api.nvim_create_autocmd("BufWritePost", {
 		group = augroup,
+		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
 					supported = true,
@@ -140,6 +138,7 @@ local function register_autocmds()
 
 	api.nvim_create_autocmd("CursorHold", {
 		group = augroup,
+		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
 					supported = true,
@@ -147,15 +146,14 @@ local function register_autocmds()
 				}) then
 				return
 			end
-			-- debug_entry_point(args)
 			on_cursor_hold(args)
 		end),
 	})
 
 	api.nvim_create_autocmd("InsertEnter", {
 		group = augroup,
+		buffer = bufnr,
 		callback = guard.guarded(function(args)
-			debug_entry_point(args)
 			if buf_state.should_skip(args.buf, {
 					supported = true,
 					has_parser = true,
@@ -170,6 +168,7 @@ local function register_autocmds()
 
 	api.nvim_create_autocmd("InsertLeave", {
 		group = augroup,
+		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
 					supported = true,
@@ -188,6 +187,7 @@ local function register_autocmds()
 
 	api.nvim_create_autocmd("InsertCharPre", {
 		group = augroup,
+		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
 					supported = true,
@@ -201,6 +201,8 @@ local function register_autocmds()
 	})
 
 	vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter" }, {
+		group = augroup,
+		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
 					supported = true,
@@ -212,8 +214,12 @@ local function register_autocmds()
 			ui.special_apply()
 		end),
 	})
+end
 
+local function register_autocmds()
+	local augroup = api.nvim_create_augroup(GROUP_NAME, { clear = true })
 	vim.api.nvim_create_autocmd("WinClosed", {
+		group = augroup,
 		callback = guard.guarded(function(args)
 			local winid = tonumber(args.match)
 			pcall(ui.clear_matches, winid)
@@ -221,9 +227,31 @@ local function register_autocmds()
 	})
 
 	vim.api.nvim_create_autocmd("FileType", {
+		group = augroup,
 		callback = guard.guarded(function(args)
+			local now_supported = is_configured_filetype(bo[args.buf].filetype)
+			local was_registered = vim.b[args.buf].tirenvi_autocmds_registered == true
+			local active = was_registered or buf_state.is_tir_vim(args.buf)
+
+			if not now_supported and not active then
+				return
+			end
+
 			debug_entry_point(args)
 			on_filetype(args)
+
+			if not now_supported then
+				if vim.b[args.buf].tirenvi_autocmds_registered then
+					api.nvim_clear_autocmds({ group = augroup, buffer = args.buf })
+					vim.b[args.buf].tirenvi_autocmds_registered = nil
+				end
+				return
+			end
+
+			register_buffer_local_autocmds(augroup, args.buf)
+			if not was_registered then
+				on_buf_read_post(args)
+			end
 		end),
 	})
 
