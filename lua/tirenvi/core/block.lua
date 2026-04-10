@@ -199,6 +199,13 @@ function M.plain:to_grid()
     return block
 end
 
+---@self Block_plain
+---@return integer[]
+function M.plain:get_widths()
+    return {}
+end
+
+M.plain.set_widths = nop
 M.plain.set_attr = nop
 M.plain.from_flat = nop
 M.plain.to_flat = nop
@@ -224,6 +231,21 @@ function M.grid:set_attr(attr)
         return
     end
     self.attr = attr
+end
+
+---@self Block_grid
+---@return integer[]
+function M.grid:get_widths()
+    local widths = {}
+    for _, column in ipairs(self.attr.columns) do
+        widths[#widths + 1] = column.width
+    end
+    return widths
+end
+
+---@self Block_grid
+function M.grid:set_widths(widths)
+    Attr.set_widths(self.attr, widths)
 end
 
 --- Normalize all rows in a grid block to have the same number of columns.
