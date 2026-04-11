@@ -107,14 +107,32 @@ local function register_buffer_local_autocmds(augroup, bufnr)
 	end
 	vim.b[bufnr].tirenvi_autocmds_registered = true
 
+	api.nvim_create_autocmd("BufReadPost", {
+		group = augroup,
+		buffer = bufnr,
+		callback = guard.guarded(function(args)
+			if
+				buf_state.should_skip(args.buf, {
+					supported = true,
+					no_vscode = true,
+					has_parser = true,
+				})
+			then
+				return
+			end
+			debug_entry_point(args)
+			on_buf_read_post(args)
+		end),
+	})
+
 	api.nvim_create_autocmd("BufWritePre", {
 		group = augroup,
 		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
-					supported = true,
-					is_tir_vim = true,
-				}) then
+				supported = true,
+				is_tir_vim = true,
+			}) then
 				return
 			end
 			debug_entry_point(args)
@@ -127,8 +145,8 @@ local function register_buffer_local_autocmds(augroup, bufnr)
 		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
-					supported = true,
-				}) then
+				supported = true,
+			}) then
 				return
 			end
 			debug_entry_point(args)
@@ -141,9 +159,9 @@ local function register_buffer_local_autocmds(augroup, bufnr)
 		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
-					supported = true,
-					has_parser = true,
-				}) then
+				supported = true,
+				has_parser = true,
+			}) then
 				return
 			end
 			on_cursor_hold(args)
@@ -155,9 +173,9 @@ local function register_buffer_local_autocmds(augroup, bufnr)
 		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
-					supported = true,
-					has_parser = true,
-				}) then
+				supported = true,
+				has_parser = true,
+			}) then
 				return
 			end
 			debug_entry_point(args)
@@ -171,9 +189,9 @@ local function register_buffer_local_autocmds(augroup, bufnr)
 		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
-					supported = true,
-					has_parser = true,
-				}) then
+				supported = true,
+				has_parser = true,
+			}) then
 				return
 			end
 			debug_entry_point(args)
@@ -190,9 +208,9 @@ local function register_buffer_local_autocmds(augroup, bufnr)
 		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
-					supported = true,
-					is_tir_vim = true,
-				}) then
+				supported = true,
+				is_tir_vim = true,
+			}) then
 				return
 			end
 			debug_entry_point(args)
@@ -205,9 +223,9 @@ local function register_buffer_local_autocmds(augroup, bufnr)
 		buffer = bufnr,
 		callback = guard.guarded(function(args)
 			if buf_state.should_skip(args.buf, {
-					supported = true,
-					is_tir_vim = true,
-				}) then
+				supported = true,
+				is_tir_vim = true,
+			}) then
 				return
 			end
 			ui.special_clear()
