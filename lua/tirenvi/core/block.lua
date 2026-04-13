@@ -3,6 +3,7 @@ local Record = require("tirenvi.core.record")
 local config = require("tirenvi.config")
 local Attr = require("tirenvi.core.attr")
 local util = require("tirenvi.util.util")
+local range = require("tirenvi.util.range")
 local log = require("tirenvi.util.log")
 
 local M = {}
@@ -56,25 +57,16 @@ local function serialize_records(self)
 end
 
 ---@param self Block_grid
-local function wrap_lf(self)
+local function wrap(self)
     local records = {}
     for _, record in ipairs(self.records) do
-        util.extend(records, Record.grid.wrap_lf(record))
+        util.extend(records, Record.grid.wrap(record, self.attr.columns))
     end
     self.records = records
 end
 
 ---@param self Block_grid
-local function wrap_width(self)
-    local records = {}
-    for _, record in ipairs(self.records) do
-        util.extend(records, Record.grid.wrap_width(record, self.attr.columns))
-    end
-    self.records = records
-end
-
----@param self Block_grid
-local function apply_column_widths(self)
+local function fill_padding(self)
     for _, record in ipairs(self.records) do
         Record.grid.fill_padding(record, self.attr.columns)
     end
@@ -114,18 +106,13 @@ local function apply_column_count(self, ncol)
     end
 end
 
-local function derive_column_count(self)
-    local ncol = 0
-    for _, record in ipairs(self.records) do
-        ncol = math.max(ncol, #record.row)
-    end
-    return ncol
-end
-
 ---@self Block
 local function ensure_table_attr(self)
     if #self.attr.columns == 0 then
-        self.attr = Attr.grid.new_merged_attr(self.records)
+        local ncol = Record.get_max_col(self.records)
+        Attr.grid.new_max_width(self.attr, ncol, self.records)
+    else
+        Attr.grid.auto_width(self.attr, self.records)
     end
 end
 
@@ -141,6 +128,28 @@ local function apply_replacements(self, replace)
             end
             record.row[icol] = cell
         end
+    end
+end
+
+---@param operator string
+---@param count integer
+---@param old_width integer
+---@return integer|nil
+local function get_new_width(operator, count, old_width)
+    if operator == "=" then
+        return count
+    elseif operator == "+" then
+        if count == 0 then
+            count = 1
+        end
+        return old_width + count
+    elseif operator == "-" then
+        if count == 0 then
+            count = 1
+        end
+        return old_width - count
+    else
+        return nil
     end
 end
 
@@ -206,6 +215,7 @@ function M.plain:get_widths()
 end
 
 M.plain.set_widths = nop
+M.plain.change_width = nop
 M.plain.set_attr = nop
 M.plain.from_flat = nop
 M.plain.to_flat = nop
@@ -248,10 +258,37 @@ function M.grid:set_widths(widths)
     Attr.set_widths(self.attr, widths)
 end
 
+---@self Block_grid
+---@param operator string
+---@param count integer
+---@param col Range
+local function change_width(attr, icol, start_col, operator, count, col)
+    local column = attr.columns[icol]
+    local old_width = column.width
+    local cel_range = { first = start_col, last = start_col + old_width }
+    if range.intersect(cel_range, col) then
+        local new_width = get_new_width(operator, count, old_width)
+        Attr.grid.set_width(attr, icol, new_width)
+    end
+end
+
+---@self Block_grid
+---@param operator string
+---@param count integer
+---@param col Range
+function M.grid:change_width(operator, count, col)
+    local start_col = 1
+    for icol, column in ipairs(self.attr.columns) do
+        local old_width = column.width
+        change_width(self.attr, icol, start_col, operator, count, col)
+        start_col = start_col + old_width + 1
+    end
+end
+
 --- Normalize all rows in a grid block to have the same number of columns.
 ---@self Block_grid
 function M.grid:from_flat()
-    local ncol = derive_column_count(self)
+    local ncol = Record.get_max_col(self.records)
     apply_column_count(self, ncol)
     apply_replacements(self, ESCAPE_MAP)
 end
@@ -262,7 +299,8 @@ function M.grid:to_flat()
 end
 
 ---@self Block_grid
----@param no_unwrap boolean
+---@param no_unwrap boolean  -- If true, skip unwrapping.
+-- Prevents line count changes that would break put(); used for repair.
 function M.grid:from_vim(no_unwrap)
     ensure_table_attr(self)
     remove_padding(self)
@@ -275,11 +313,10 @@ end
 --- Normalize all rows in a grid block to have the same number of columns.
 ---@self Block_grid
 function M.grid:to_vim()
-    wrap_lf(self)
     ensure_table_attr(self)
     apply_column_count(self, #self.attr.columns)
-    wrap_width(self)
-    apply_column_widths(self)
+    wrap(self)
+    fill_padding(self)
 end
 
 return M

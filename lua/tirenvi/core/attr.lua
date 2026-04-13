@@ -23,23 +23,16 @@ local function get_columns(cells)
     return columns
 end
 
----@self Attr
----@param source Attr
-local function merge(self, source)
-    ---@type Attr_column[]
-    local mcols = self.columns
-    ---@type Attr_column[]
-    local scols = source.columns
-    local count = math.max(#mcols, #scols)
-    for index = 1, count do
-        local mcol = mcols[index]
-        local scol = scols[index]
-        if not mcol then
-            mcols[index] = scol
-        elseif scol then
-            mcol.width = math.max(mcol.width, scol.width)
-        end
+---@param records Record_grid[]
+---@param icol integer
+---@return integer
+local function get_max_width(records, icol)
+    local max_width = 0
+    for _, record in ipairs(records) do
+        local width = Cell.get_width(record.row[icol])
+        max_width = math.max(max_width, width)
     end
+    return math.max(max_width, 2)
 end
 
 ---@param columns Attr_column[]
@@ -109,22 +102,36 @@ function M.grid.new_from_record(cells)
     return new_from_columns(get_columns(cells))
 end
 
+---@self Attr
+---@param ncol integer
 ---@param records Record_grid[]
----@return Attr
-function M.grid.new_merged_attr(records)
-    local attr = M.grid.new()
-    for _, record in ipairs(records) do
-        merge(attr, M.grid.new_from_record(record.row))
+function M.grid:new_max_width(ncol, records)
+    self.columns = {}
+    for icol = 1, ncol do
+        local width = get_max_width(records, icol)
+        self.columns[icol] = { width = width }
     end
-    return attr
+end
+
+---@self Attr
+---@param records Record_grid[]
+function M.grid:auto_width(records)
+    for icol, column in ipairs(self.columns) do
+        if column.width == 0 then
+            column.width = get_max_width(records, icol)
+        end
+    end
 end
 
 ---@self Attr
 ---@param icol integer
----@param width integer
+---@param width integer|nil
 function M.grid:set_width(icol, width)
+    if not width then
+        return
+    end
     self.columns[icol] = self.columns[icol] or {}
-    self.columns[icol].width = math.max(width, 2)
+    self.columns[icol].width = width == 0 and 0 or math.max(width, 2)
 end
 
 ---@self Attr

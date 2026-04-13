@@ -6,10 +6,8 @@
 ---   - Column expansion is applied only to grid blocks.
 
 local CONST = require("tirenvi.constants")
-local Record = require("tirenvi.core.record")
 local Attr = require("tirenvi.core.attr")
 local util = require("tirenvi.util.util")
-local config = require("tirenvi.config")
 local Block = require("tirenvi.core.block")
 local log = require("tirenvi.util.log")
 
@@ -194,6 +192,16 @@ function M:set_widths(widths)
 	end
 end
 
+---@self Blocks
+---@param operator string
+---@param count integer
+---@param col Range
+function M:change_width(operator, count, col)
+	for _, block in ipairs(self) do
+		Block[block.kind].change_width(block, operator, count, col)
+	end
+end
+
 --- Convert NDJSON records into normalized blocks.
 ---@param ndjsons Ndjson[]
 ---@return Blocks
@@ -222,7 +230,8 @@ end
 
 --- Convert NDJSON records into normalized blocks.
 ---@param records Record[]
----@param no_unwrap boolean
+---@param no_unwrap boolean  -- If true, skip unwrapping.
+-- Prevents line count changes that would break put(); used for repair.
 ---@return Blocks
 function M.new_from_vim(records, no_unwrap)
 	local self = build_blocks(records)
